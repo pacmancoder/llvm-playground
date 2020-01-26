@@ -9,7 +9,9 @@ add_definitions(${LLVM_DEFINITIONS})
 include_directories(${LLVM_INCLUDE_DIRS})
 link_directories(${LLVM_LIBRARY_DIRS})
 
+SET(CMAKE_CXX_FLAGS "-Wall -fno-rtti")
+
 # Passes
 add_subdirectory(00_hello_world)
 add_subdirectory(01_clang_plugin)
-
+add_subdirectory(02_code_modification)
