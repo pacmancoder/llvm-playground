@@ -1,3 +1,8 @@
+// Code modification pass example
+// - Implements pass which embeds the binary content into variables, annotated with
+//   "embed_resource=<path>" annotation
+// - Uses new pass manager!
+
 #include "BinaryEmbedder.h"
 
 #include <llvm/IR/Module.h>
@@ -109,7 +114,7 @@ static BinaryEmbedderError SubstitutePointerVariableTarget(
     Value* zero = Constant::getNullValue(
         Type::getInt32Ty(module.getContext()));
 
-    SmallVector<Value*, 8> idxList;
+    SmallVector<Value*, 2> idxList;
     idxList.push_back(zero);
     idxList.push_back(zero);
 
@@ -120,9 +125,9 @@ static BinaryEmbedderError SubstitutePointerVariableTarget(
 
     auto newConstPtr = new GlobalVariable(
         module,
-        llvm::PointerType::getInt8PtrTy(module.getContext()),
+        PointerType::getInt8PtrTy(module.getContext()),
         true,
-        llvm::GlobalVariable::InternalLinkage,
+        GlobalVariable::InternalLinkage,
         getElementPtrInstruction);
 
     // For each instruction which uses original variable, replace variable with
