@@ -4,7 +4,9 @@ project(benchmark)
 set(CMAKE_C_COMPILER clang)
 set(CMAKE_CXX_COMPILER clang++)
 
-add_library(profiler profiler.c)
+set(CMAKE_CXX_STANDARD 17)
+
+add_library(profiler profiler.cpp)
 
 add_executable(benchmark benchmark.c)
 
