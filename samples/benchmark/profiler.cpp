@@ -9,7 +9,7 @@ namespace {
 
     struct FunctionProfilingData {
         long long lastEntryTime;
-        long long accumulatedAverageTime;
+        long long accumulatedTime;
 
         size_t currentEntryNesting;
         size_t entryCount;
@@ -25,10 +25,12 @@ namespace {
 
     using FilesProfilingResult = std::map<FileName, long long>;
     using FunctionsProfilingResults = std::map<FunctionName, FilesProfilingResult>;
+    using SortedTimings = std::multimap<long long, FunctionsProfilingResults::iterator>;
 
     struct ProfilingResults {
         long long overallTime;
-        FunctionsProfilingResults functionFrofilingResults;
+        FunctionsProfilingResults functionProfilingResults;
+        SortedTimings sortedTimings;
     };
 
     class Profiler {
@@ -102,23 +104,34 @@ void Profiler::ExitFunction(FileName file, FunctionName function) {
     auto executionTime = GetCurentTimeUs() - functionEntry.lastEntryTime;
 
     // Very rough accumulation technique but fast :)
-    functionEntry.accumulatedAverageTime +=
-        (executionTime - functionEntry.accumulatedAverageTime) / functionEntry.entryCount;
+    functionEntry.accumulatedTime += executionTime;
 }
 
 ProfilingResults Profiler::CalculateResults() {
     auto results = ProfilingResults {};
-    for (auto [thread, fileData] : threadsProfilingData_) {
-        for (auto [fileName, functions] : fileData) {
-            for (auto [functionName, functionData] : functions) {
-                results.functionFrofilingResults[functionName][fileName]
-                    = functionData.accumulatedAverageTime;
-                results.overallTime += functionData.accumulatedAverageTime;
+    for (auto& [thread, fileData] : threadsProfilingData_) {
+        for (auto& [fileName, functions] : fileData) {
+            for (auto& [functionName, functionData] : functions) {
+                auto averageTime = static_cast<long long>(
+                    static_cast<double>(functionData.accumulatedTime) / functionData.entryCount);
+                results.functionProfilingResults[functionName][fileName] = averageTime;
+                results.overallTime += averageTime;
             }
         }
 
         (void) thread;
     }
+
+    for (auto functionProfilingIt = results.functionProfilingResults.begin(); functionProfilingIt != results.functionProfilingResults.end(); ++functionProfilingIt) {
+        auto& [functionName, fileData] = *functionProfilingIt;
+
+        long long functionOverallTime = 0;
+        for (auto& [fileName, time] : fileData) {
+            functionOverallTime += time;
+        }
+        results.sortedTimings.emplace(std::pair<long long, FunctionsProfilingResults::iterator>(functionOverallTime, functionProfilingIt));
+    }
+
     return results;
 }
 
@@ -145,30 +158,30 @@ void Profiler::PrintResults(std::ostream& stream) {
     stream << "\n\n=== PROFILING RESULTS ===\n";
 
     auto results = CalculateResults();
-    stream << "Overall execution time:\n\t" << results.overallTime << "us\n";
+    stream << "Overall execution time:\n\t" << ToHumanReadableTime(results.overallTime) << "\n";
     stream << "States by function name:\n";
-    for (auto [functionName, functionDataByFile] : results.functionFrofilingResults) {
+    for (auto sortedTimingsIt = results.sortedTimings.rbegin(); sortedTimingsIt != results.sortedTimings.rend(); ++sortedTimingsIt) {
+        auto& [functionOverallTime, function] = *sortedTimingsIt;
+        if (functionOverallTime == 0) {
+            continue;
+        }
+        auto& [functionName, functionDataByFile] = *function;
         if (functionDataByFile.size() == 1) {
             auto functionTime = functionDataByFile.begin()->second;
             stream << "\t[" << functionName << "] time: "
-                << ToHumanReadableTime(functionTime) << ", percentage: "
-                << ToHumanReadablePercents(results.overallTime, functionTime) << "\n";
+                   << ToHumanReadableTime(functionTime) << ", percentage: "
+                   << ToHumanReadablePercents(results.overallTime, functionTime) << "\n";
         } else {
-            auto functionOverallTime = 0;
-            for (auto [file, time] : functionDataByFile) {
-                functionOverallTime += time;
-            }
             stream << "\t[" << functionName << "] time: "
-                << ToHumanReadableTime(functionOverallTime) << ", percentage: "
-                << ToHumanReadablePercents(results.overallTime, functionOverallTime) << "\n";
+                   << ToHumanReadableTime(functionOverallTime) << ", percentage: "
+                   << ToHumanReadablePercents(results.overallTime, functionOverallTime) << "\n";
             for (auto [file, time] : functionDataByFile) {
                 stream << "\t\t[" << file << "] time: "
-                    << ToHumanReadableTime(time) << ", relative percentage: "
-                    << ToHumanReadablePercents(functionOverallTime, time) << "\n";
+                       << ToHumanReadableTime(time) << ", relative percentage: "
+                       << ToHumanReadablePercents(functionOverallTime, time) << "\n";
             }
         }
     }
-
 }
 
 // === Display api ===
