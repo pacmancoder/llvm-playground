@@ -23,6 +23,11 @@ extern "C" PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK llvmGetPassPluginInfo() {
 
                 return true;
             });
+            // Register pass automatically from clang (except -O0 optimization level :( )
+            // clang -fexperimental-new-pass-manager -fpass-plugin=<plugin_pass>
+            passBuilder.registerPipelineStartEPCallback([](ModulePassManager& passManager) {
+                passManager.addPass(BinaryEmbedder());
+            });
         }
     };
 }

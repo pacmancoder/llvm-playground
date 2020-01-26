@@ -10,6 +10,7 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Path.h>
+#include <llvm/IR/Verifier.h>
 
 #include <string>
 #include <vector>
@@ -48,6 +49,8 @@ static BinaryEmbedderError LoadVectorFromFile(const std::string& path, std::vect
     data = std::vector<char>(
         std::istreambuf_iterator<char>(binaryFile),
         std::istreambuf_iterator<char>());
+
+    data.push_back('\0');
 
     return BinaryEmbedderError::Ok;
 }
@@ -94,13 +97,17 @@ static BinaryEmbedderError LoadEmbeddedDataArrayForAnnotation(
 }
 
 static GlobalVariable* CreateEmbeddedDataConstant(Module& module, const std::vector<char>& data) {
-    auto* varType = ArrayType::get(IntegerType::getInt8Ty(module.getContext()), data.size() + 1);
-    auto* varInitializer = ConstantDataArray::getString(module.getContext(), data.data());
+    auto* varInitializer = ConstantDataArray::getRaw(
+        StringRef(data.data(), data.size()),
+        data.size(),
+        IntegerType::getInt8Ty(module.getContext())
+    );
+
     return new GlobalVariable(
         module,
-        varType,
+        varInitializer->getType(),
         true,
-        GlobalVariable::LinkageTypes::PrivateLinkage,
+        GlobalVariable::LinkageTypes::InternalLinkage,
         varInitializer
     );
 }
@@ -135,10 +142,10 @@ static BinaryEmbedderError SubstitutePointerVariableTarget(
     for (auto user : original->users()) {
         if (auto inst = dyn_cast<Instruction>(user)) {
             inst->replaceUsesOfWith(original, newConstPtr);
-            changed = true;
         }
     }
 
+    changed = true;
     return BinaryEmbedderError::Ok;
 }
 
@@ -198,6 +205,8 @@ PreservedAnalyses BinaryEmbedder::run(Module& module, ModuleAnalysisManager& pas
             }
         }
     }
+
+    verifyModule(module);
 
     return isCodeModified ? PreservedAnalyses::none() : PreservedAnalyses::all();
 }
