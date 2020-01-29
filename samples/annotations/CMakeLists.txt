@@ -1,16 +1,14 @@
 cmake_minimum_required(VERSION 3.10)
 project(annotations)
 
-set(CMAKE_C_COMPILER clang)
-set(CMAKE_CXX_COMPILER clang++)
-
-add_executable(annotations annotations.c)
+add_executable(${PROJECT_NAME} annotations.c)
 
 target_compile_options(
-    annotations
+    ${PROJECT_NAME}
     PRIVATE
     "-O1"
     "-fexperimental-new-pass-manager"
-    "-fpass-plugin=${BINARY_EMBEDDER_PASS_PLUGIN}"
+    "-fpass-plugin=${PASS_PLUGIN_BINARY_EMBEDDER}"
 )
 
+add_dependencies(${PROJECT_NAME} 02_code_modification)

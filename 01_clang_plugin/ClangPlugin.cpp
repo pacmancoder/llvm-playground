@@ -1,36 +1,37 @@
-// Legacy pass plugin example with auto launch
-// - Says hello to all functions!
-// - Uses legacy pass manager
-// - Launched automatically when specifying -Xclang -load -Xclang <plugin_path>
+// Llvm analysis pass example.
+//- Says hello to all functions from clang!
 
 #include <llvm/IR/Function.h>
-#include <llvm/Pass.h>
-#include <llvm/IR/LegacyPassManager.h>
-#include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Passes/PassPlugin.h>
+#include <llvm/Passes/PassBuilder.h>
 
 using namespace llvm;
 
 namespace {
-    struct ClangPlugin : public FunctionPass {
-        static char ID;
-
-        ClangPlugin() : FunctionPass(ID) {}
-
-        bool runOnFunction(Function &F) override {
-            errs() << "Hello, " << F.getName() << "!\n";
-            return false;
+    struct HelloClangPass : public PassInfoMixin<HelloClangPass> {
+        PreservedAnalyses run(
+            Function& function,
+            FunctionAnalysisManager& passManager
+        ) {
+            errs() << "Hello from clang, " << function.getName() << "!\n";
+            return PreservedAnalyses::all();
         }
     };
 }
 
-char ClangPlugin::ID = 0;
-
-static void RegisterClangPlugin(const PassManagerBuilder&, legacy::PassManagerBase & PassManager) {
-    PassManager.add(new ClangPlugin());
+extern "C" PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK llvmGetPassPluginInfo() {
+    return {
+        LLVM_PLUGIN_API_VERSION, "HelloPass", "v1.0",
+        [](PassBuilder &passBuilder) {
+            // Register pass automatically from clang
+            // clang -fexperimental-new-pass-manager -fpass-plugin=<plugin_pass>
+            passBuilder.registerOptimizerLastEPCallback([](
+                FunctionPassManager& passManager,
+                PassBuilder::OptimizationLevel
+            ) {
+                passManager.addPass(HelloClangPass());
+            });
+        }
+    };
 }
-
-static RegisterStandardPasses PassRegistrationPoint(
-    PassManagerBuilder::EP_EarlyAsPossible,
-    RegisterClangPlugin
-);

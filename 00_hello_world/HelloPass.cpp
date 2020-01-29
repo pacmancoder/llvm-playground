@@ -1,26 +1,42 @@
 // Llvm analysis pass example.
 //- Says hello to all functions!
-//- Uses legacy pass manager
 
 #include <llvm/IR/Function.h>
-#include <llvm/Pass.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Passes/PassPlugin.h>
+#include <llvm/Passes/PassBuilder.h>
 
 using namespace llvm;
 
 namespace {
-    struct HelloPass : public FunctionPass {
-        static char ID;
-
-        HelloPass() : FunctionPass(ID) {}
-
-        bool runOnFunction(Function &F) override {
-            errs() << "Hello,  " << F.getName() << "!\n";
-            return false;
+    struct HelloPass : public PassInfoMixin<HelloPass> {
+        PreservedAnalyses run(
+            Function& function,
+            FunctionAnalysisManager& passManager
+        ) {
+            errs() << "Hello, " << function.getName() << "!\n";
+            return PreservedAnalyses::all();
         }
     };
 }
 
-char HelloPass::ID = 0;
+extern "C" PassPluginLibraryInfo LLVM_ATTRIBUTE_WEAK llvmGetPassPluginInfo() {
+    return {
+        LLVM_PLUGIN_API_VERSION, "HelloPass", "v1.0",
+        [](PassBuilder &passBuilder) {
+            // Register pass when launching manually from opt tool:
+            // opt -load-pass-plugin <plugin_path> -passes=HelloPass ...
+            passBuilder.registerPipelineParsingCallback([](
+                StringRef name,
+                FunctionPassManager& passManager,
+                ArrayRef<PassBuilder::PipelineElement>
+            ) {
+                if (name.equals("HelloPass")) {
+                    passManager.addPass(HelloPass());
+                }
 
-static RegisterPass<HelloPass> HelloPassInstance("HelloPass", "Hello World Pass");
+                return true;
+            });
+        }
+    };
+}

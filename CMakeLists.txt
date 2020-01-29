@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 project(llvm-playground)
 
+
 set(CMAKE_CXX_STANDARD 14)
 
 # Common LLVM definitions
@@ -16,3 +17,5 @@ add_subdirectory(00_hello_world)
 add_subdirectory(01_clang_plugin)
 add_subdirectory(02_code_modification)
 add_subdirectory(03_code_generation)
+
+add_subdirectory(samples)
